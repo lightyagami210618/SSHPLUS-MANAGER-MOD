@@ -137,7 +137,7 @@ class ConnectionHandler(threading.Thread):
                     self.method_CONNECT(hostPort)
                 elif len(PASS) != 0 and passwd != PASS:
                     self.client.send(b'HTTP/1.1 400 WrongPass!\r\n\r\n')
-                elif hostPort.startswith('127.0.0.1') or hostPort.startswith('localhost'):
+                elif hostPort.startswith('127.0.0.1') or hostPort.startswith('localhost') or LISTENING_ADDR == '0.0.0.0':
                     self.method_CONNECT(hostPort)
                 else:
                     self.client.send(b'HTTP/1.1 403 Forbidden!\r\n\r\n')
@@ -154,7 +154,6 @@ class ConnectionHandler(threading.Thread):
             self.server.removeConn(self)
 
     def findHeader(self, head, header):
-        # Bytes ထဲမှာ ရှာရမှာမို့ header string ကို bytes ပြောင်းပါတယ်
         header_b = header.encode('utf-8') + b': '
         aux = head.find(header_b)
     
@@ -189,8 +188,7 @@ class ConnectionHandler(threading.Thread):
 
     def method_CONNECT(self, path):
         self.log += ' - CONNECT ' + path
-        self.method = 'CONNECT' # မူရင်းကုဒ်က bug ကို ပြင်ဆင်ထားပါတယ်
-        
+        self.method = 'CONNECT'
         self.connect_target(path)
         self.client.sendall(RESPONSE)
         self.client_buffer = b''
@@ -256,11 +254,10 @@ def parse_args(argv):
     
 
 def main(host=LISTENING_ADDR, port=LISTENING_PORT):
-    
-    print("\033[0;34m━"*8,"\033[1;32m PROXY WEBSOCKET","\033[0;34m━"*8,"\n")
+    print("\033[0;34m━"*8, "\033[1;32m PROXY WEBSOCKET", "\033[0;34m━"*8, "\n")
     print("\033[1;33mIP:\033[1;32m " + LISTENING_ADDR)
     print("\033[1;33mPORTA:\033[1;32m " + str(LISTENING_PORT) + "\n")
-    print("\033[0;34m━"*10,"\033[1;32m VPSMANAGER","\033[0;34m━\033[1;37m"*11,"\n")
+    print("\033[0;34m━"*10, "\033[1;32m VPSMANAGER", "\033[0;34m━\033[1;37m"*11, "\n")
     
     server = Server(LISTENING_ADDR, LISTENING_PORT)
     server.start()
