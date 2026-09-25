@@ -2,7 +2,7 @@
 clear
 #——————————————————
 # CRIADOR POR @CRAZY_VPN
-# VERSAO 1.5 (FIXED - Public Key & Download Solved)
+# VERSAO 1.4 (FIXED - Original Flow Preserved)
 # SLOW DNS TUNNEL
 #——————————————————
 RED='\033[1;31m'
@@ -12,12 +12,6 @@ CYAN='\033[1;36m'
 CORTITLE='\033[1;41m'
 DIR='/etc/SSHPlus/dns'
 SCOLOR='\033[0m'
-
-# ✅ အလုပ်လုပ်နေသော Binary နှင့် Key ဖိုင် URL များ
-BIN_URL_PRIMARY="https://raw.githubusercontent.com/NevermoreSSH/hopp/main/slowdns/sldns-server"
-BIN_URL_FALLBACK="https://github.com/net2share/dnstt/releases/latest/download/dnstt-server-linux-amd64"
-KEY_URL="https://raw.githubusercontent.com/NevermoreSSH/hopp/main/slowdns/server.key"
-PUB_URL="https://raw.githubusercontent.com/NevermoreSSH/hopp/main/slowdns/server.pub"
 
 configdns() {
     interface=$(ip a | awk '/state UP/{print $2}' | cut -d: -f1 | head -n1)
@@ -29,7 +23,6 @@ configdns() {
 }
 
 echo -e "${CORTITLE}           SSHPLUS SLOWDNS (Beta)            ${SCOLOR}"
-
 installslowdns() {
     echo -e "\n${YELLOW}ESTEJA CIENTE QUE ESSE METODO AINDA\nESTA NA FASE BETA E QUE ALEM DE SER\nLENTO PODE NAO FUNCIONAR PERFEITAMENTE ! ${SCOLOR}\n"
     echo -ne "${GREEN}DESEJA CONTINUAR A INSTALACAO ? ${YELLOW}[s/n]:${SCOLOR} "
@@ -40,62 +33,168 @@ installslowdns() {
         conexao
     }
     
-    # ✅ -p ဖြင့် လိုအပ်သော ဖိုင်တွဲအားလုံးကို ဖန်တီးခြင်း
-    mkdir -p "$DIR"
+    # ✅ FIX 1: mkdir -p ဖြင့် parent folder ပါ ဖန်တီးခြင်း
+    mkdir -p /etc/SSHPlus/dns
     
-    # ✅ လိုအပ်သော packages စစ်ဆေးခြင်း
-    command -v wget >/dev/null 2>&1 || apt install -y wget
-    command -v screen >/dev/null 2>&1 || apt install -y screen
-    command -v netstat >/dev/null 2>&1 || apt install -y net-tools
-    
-    echo -e "\n${CYAN}Downloading SlowDNS binary...${SCOLOR}"
-    # ✅ အလုပ်လုပ်သော URL မှ binary ဒေါင်းလုဒ်လုပ်ခြင်း
-    if wget -q --timeout=20 --tries=2 -O "$DIR/sldns-server" "$BIN_URL_PRIMARY"; then
-        echo -e "${GREEN}Primary binary downloaded.${SCOLOR}"
-    elif wget -q --timeout=20 --tries=2 -O "$DIR/sldns-server" "$BIN_URL_FALLBACK"; then
-        echo -e "${YELLOW}Fallback binary downloaded.${SCOLOR}"
-    else
-        echo -e "\n${RED}❌ ERROR: SlowDNS binary download မဖြစ်ပါ!${SCOLOR}"
-        echo -e "${YELLOW}Manual ဒေါင်းလုဒ်လုပ်ရန် လမ်းညွှန်ချက်များ:${SCOLOR}"
-        echo -e "  ${CYAN}wget -O $DIR/sldns-server <URL>${SCOLOR}"
-        echo -e "  ${CYAN}chmod +x $DIR/sldns-server${SCOLOR}"
-        return 1
+    # ✅ FIX 2: အလုပ်လုပ်သော URL အသစ်ဖြင့် ဒေါင်းလုဒ်လုပ်ခြင်း (မူရင်း URL က ပျက်နေပါပြီ)
+    echo -e "\n${CYAN}Downloading dns-server...${SCOLOR}"
+    if ! wget -q --timeout=20 --tries=2 -O $DIR/dns-server "https://github.com/net2share/dnstt/releases/latest/download/dnstt-server-linux-amd64"; then
+        echo -e "\n${RED}❌ ERROR: dns-server ဒေါင်းလုဒ်မဖြစ်ပါ!${SCOLOR}"
+        echo -e "${YELLOW}Server က ARM ဖြစ်နေရင် 'linux-arm64' လို့ ပြောင်းပြီး စမ်းပါ။${SCOLOR}"
+        echo -ne "\n${RED}ENTER${SCOLOR}"; read; conexao
     fi
     
-    chmod +x "$DIR/sldns-server"
+    chmod 777 $DIR/dns-server >/dev/null 2>&1
     
-    echo -e "\n${CYAN}Downloading server keys...${SCOLOR}"
-    # ✅ Key ဖိုင်များကို အလုပ်လုပ်သော URL မှ ဒေါင်းလုဒ်လုပ်ခြင်း
-    if ! wget -q --timeout=20 -O "$DIR/server.key" "$KEY_URL"; then
-        echo -e "\n${RED}❌ ERROR: server.key ဒေါင်းလုဒ်မဖြစ်ပါ!${SCOLOR}"
-        return 1
-    fi
-    if ! wget -q --timeout=20 -O "$DIR/server.pub" "$PUB_URL"; then
-        echo -e "\n${RED}❌ ERROR: server.pub ဒေါင်းလုဒ်မဖြစ်ပါ!${SCOLOR}"
-        return 1
-    fi
+    # ✅ FIX 3: Key generate လုပ်တဲ့အခါ error ဖုံးထားတာကို ဖျက်ပြီး၊ key ထွက်မထွက် စစ်ဆေးခြင်း
+    echo -e "\n${CYAN}Generating keys...${SCOLOR}"
+    $DIR/dns-server -gen-key -privkey-file $DIR/server.key -pubkey-file $DIR/server.pub
     
-    # ✅ Key ဖိုင်များ ရောက်ရှိမှုကို စစ်ဆေးခြင်း
-    if [[ ! -s "$DIR/server.key" ]] || [[ ! -s "$DIR/server.pub" ]]; then
-        echo -e "\n${RED}❌ ERROR: Key files မထွက်ပါ!${SCOLOR}"
-        echo -e "${YELLOW}Key files များကို manual စစ်ဆေးပါ။${SCOLOR}"
-        return 1
+    if [[ ! -s "$DIR/server.pub" ]] || [[ ! -s "$DIR/server.key" ]]; then
+        echo -e "\n${RED}❌ ERROR: Public/Private key မထွက်ပါ!${SCOLOR}"
+        echo -e "${YELLOW}Binary က သင့် server architecture နဲ့ မကိုက်ညီလို့ ဖြစ်နိုင်ပါတယ်။${SCOLOR}"
+        echo -e "${CYAN}uname -m${SCOLOR} ရိုက်ပြီး architecture ကို စစ်ဆေးပါ။"
+        echo -ne "\n${RED}ENTER${SCOLOR}"; read; conexao
     fi
     
-    echo -e "${GREEN}✅ Keys နှင့် Binary များ အောင်မြင်စွာ ရရှိပါပြီ!${SCOLOR}"
-    cat "$DIR/server.pub"
+    echo -e "${GREEN}✅ Keys generated successfully!${SCOLOR}"
+    cat $DIR/server.pub
     
     configdns >/dev/null 2>&1
-    cat /dev/null > ~/.bash_history && history -c
+    cat /dev/null >~/.bash_history && history -c
 }
 
-# ... (initslow နှင့် အခြား function များသည် ယခင်အတိုင်း) ...
-
-# ✅ ပင်မ flow - Key ရှိမရှိ စစ်ပြီး install/initslow
-if [[ -d $DIR ]] && [[ -s "$DIR/server.pub" ]] && [[ -s "$DIR/server.key" ]]; then
+initslow() {
+    [[ $(ss -lu | grep -wc '5300') != '0' ]] && {
+        echo -e "\n${RED}[${CYAN}1${RED}] ${YELLOW}PARAR O SLOWDNS${SCOLOR}"
+        echo -e "${RED}[${CYAN}2${RED}] ${YELLOW}REMOVER O SLOWDNS${SCOLOR}"
+        echo -e "${RED}[${CYAN}3${RED}] ${YELLOW}EXIBIR INFORMACOES${SCOLOR}"
+        echo -e "${RED}[${CYAN}0${RED}] ${YELLOW}VOLTAR${SCOLOR}"
+        echo -ne "\n${GREEN}INFORME UMA OPCAO${SCOLOR}: "
+        read op
+        if [[ "$op" == '1' ]]; then
+            screen -r -S "slow_dns" -X quit >/dev/null 2>&1
+            screen -wipe >/dev/null 2>&1
+            sed -i '/5300/d' /etc/autostart >/dev/null 2>&1
+            sed -i '/slow_dns/d' /etc/SSHPlus/dns/autodns >/dev/null 2>&1
+            echo -e "\n${RED}SLOWDNS DESATIVADO !${SCOLOR}"
+            sleep 2
+            conexao
+        elif [[ "$op" == '2' ]]; then
+            screen -r -S "slow_dns" -X quit >/dev/null 2>&1
+            screen -wipe >/dev/null 2>&1
+            sed -i '/5300/d' /etc/autostart >/dev/null 2>&1
+            rm -rf /etc/SSHPlus/dns >/dev/null 2>&1
+            echo -e "\n${RED}SLOWDNS REMOVIDO !${SCOLOR}"
+            sleep 2
+            conexao
+        elif [[ "$op" == '3' ]]; then
+            [[ -e $DIR/server.pub ]] && keypub=$(cat $DIR/server.pub) || keypub='Null'
+            [[ -e $DIR/autodns ]] && nameserver=$(grep -w 'server.key' /etc/SSHPlus/dns/autodns | awk -F' ' '{print $9}') || nameserver='Null'
+            tmx='curl -sO https://sshplus.net/scripts/slowdns && chmod +x slowdns && ./slowdns'
+            clear
+            echo -e "${CORTITLE}           SSHPLUS SLOWDNS (Beta)            ${SCOLOR}"
+            echo -e "\n${YELLOW}NAMESERVER(NS)${SCOLOR}: $nameserver"
+            echo -e "${YELLOW}CHAVE PUBLICA${SCOLOR}: $keypub"
+            echo -e "\n${GREEN}COMANDO TERMUX${SCOLOR}: ${tmx} ${nameserver} ${keypub}"
+            echo -ne "\n${RED}ENTER${YELLOW} para retornar ao${GREEN} MENU!${SCOLOR}"
+            read
+            conexao
+        elif [[ "$op" == '0' ]]; then
+            sleep 1
+            conexao
+        else
+            echo -e "\n${RED}OPCAO INVALIDA${SCOLOR}"
+            sleep 1.5
+            conexao
+        fi
+    } || {
+        clear
+        echo -e "${CORTITLE}           SSHPLUS SLOWDNS (Beta)            ${SCOLOR}"
+        echo -ne "\n${GREEN}INFORME O DOMINIO NS${SCOLOR}: "
+        read ns
+        [[ -z "$ns" ]] && {
+            echo -e "\n${RED}DOMINIO INVALIDO${SCOLOR}"
+            sleep 1.5
+            initslow
+        }
+        echo -e "\n${RED}[${CYAN}1${RED}] ${YELLOW}SLOWDNS SSH${SCOLOR}"
+        echo -e "${RED}[${CYAN}2${RED}] ${YELLOW}SLOWDNS SSL${SCOLOR}"
+        echo -e "${RED}[${CYAN}3${RED}] ${YELLOW}SLOWDNS SSLH${SCOLOR}"
+        echo -e "${RED}[${CYAN}4${RED}] ${YELLOW}SLOWDNS OPENVPN${SCOLOR}"
+        echo -e "${RED}[${CYAN}0${RED}] ${YELLOW}VOLTAR${SCOLOR}"
+        echo -ne "\n${GREEN}INFORME UMA OPCAO${SCOLOR}: "
+        read opcc
+        if [[ "$opcc" == '1' ]]; then
+            ptdns='22'
+        elif [[ "$opcc" == '2' ]]; then
+            ptdns=$(netstat -nplt | grep 'stunnel' | awk {'print $4'} | cut -d: -f2 | head -n1)
+            [[ $ptdns == '' ]] && {
+                echo -e "\n${RED}PRIMEIRO INSTALE O SSL TUNNEL !${SCOLOR}"
+                sleep 1.5
+                initslow
+            }
+        elif [[ "$opcc" == '3' ]]; then
+            ptdns=$(netstat -nplt | grep 'sslh' | awk {'print $4'} | cut -d: -f2 | head -n1)
+            [[ $ptdns == '' ]] && {
+                echo -e "\n${RED}PRIMEIRO INSTALE O SSLH !${SCOLOR}"
+                sleep 1.5
+                initslow
+            }
+        elif [[ "$opcc" == '4' ]]; then
+            [[ ! -e /etc/openvpn/server.conf ]] && {
+                echo -e "\n${RED}PRIMEIRO INSTALE O OPENVPN !${SCOLOR}"
+                sleep 1.5
+                initslow
+            } || {
+                ptdns=$(sed -n 1p /etc/openvpn/server.conf| cut -d' ' -f2)
+            }
+        elif [[ "$opcc" == '0' ]]; then
+            sleep 1.5
+            conexao
+        else
+            echo -e "\n${RED}OPCAO INVALIDA${SCOLOR}"
+            sleep 1.5
+            initslow
+        fi
+        
+        # ✅ FIX 4: Screen မစတင်ခင် Key file ရှိမရှိ စစ်ဆေးခြင်း
+        if [[ ! -s "$DIR/server.key" ]] || [[ ! -s "$DIR/server.pub" ]]; then
+            echo -e "\n${RED}❌ Key files မရှိပါ! ပြန် generate လုပ်နေသည်...${SCOLOR}"
+            $DIR/dns-server -gen-key -privkey-file $DIR/server.key -pubkey-file $DIR/server.pub 2>&1
+            if [[ ! -s "$DIR/server.key" ]]; then
+                echo -e "${RED}Key မထွက်ပါ။ ENTER နှိပ်ပြီး ပြန်စမ်းပါ။${SCOLOR}"
+                read; conexao
+            fi
+        fi
+        
+        screen -dmS slow_dns $DIR/dns-server -udp :5300 -privkey-file $DIR/server.key ${ns} 0.0.0.0:${ptdns} >/dev/null 2>&1
+        keypub=$(cat $DIR/server.pub)
+        cd $HOME
+        echo -e "\n${YELLOW}ATIVADO O SLOWDNS...${SCOLOR}"
+        [[ ! -e /etc/iptables/rules.v4 ]] && {
+            configdns > /dev/null 2>&1
+            DEBIAN_FRONTEND=noninteractive apt install -y iptables-persistent >/dev/null 2>&1
+        } || {
+            sleep 2
+            configdns > /dev/null 2>&1
+            iptables-save > /etc/iptables/rules.v4
+        }
+        echo "screen -dmS slow_dns $DIR/dns-server -udp :5300 -privkey-file $DIR/server.key ${ns} 0.0.0.0:${ptdns}" >/etc/SSHPlus/dns/autodns
+        chmod 777 /etc/SSHPlus/dns/autodns >/dev/null 2>&1
+        echo "ss -lu|grep -w '5300' || /etc/SSHPlus/dns/autodns" >>/etc/autostart
+        tmx='curl -sO https://sshplus.net/scripts/slowdns && chmod +x slowdns && ./slowdns'
+        echo -e "\n${GREEN}SLOWDNS ATIVADO !${SCOLOR}"
+        echo -e "\n${YELLOW}COMANDO TERMUX${SCOLOR}: ${tmx} ${ns} ${keypub}"
+        echo -ne "\n${RED}ENTER${YELLOW} para retornar ao${GREEN} MENU!${SCOLOR}"
+        read
+        conexao
+    }
+}
+[[ -d $DIR ]] && {
     initslow
-else
+} || {
     installslowdns
     sleep 0.5
     initslow
-fi
+}
